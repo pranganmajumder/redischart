@@ -6,8 +6,6 @@ metadata:
   namespace: "default"
   labels:
     app: redischart
-    chart: redischart-0.1.0
-    heritage: Helm
     release: my-release2
 data:
   ping_readiness_local.sh: |-

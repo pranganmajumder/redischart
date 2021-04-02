@@ -1,55 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-service
+  labels:
+    app: sentinel-service
+spec:
+  ports:
+    - port: 26379
+      name: my-release2-redischart-sentinel
+  clusterIp: None
+  selector:
+    app:  sentinel-service
+---
+
+
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: my-release2-redischart-node
+  name: my-release2-redischart-sentinel
   namespace: "default"
   labels:
-    app: redischart
-    release: my-release2
+    app: redischart-sentinel
+
 spec:
   replicas: 3
-  serviceName: my-release2-redischart-headless
+  serviceName: sentinel-service
   selector:
     matchLabels:
-      app: redischart
-      release: my-release2
+      app: redischart-sentinel
+
   template:
     metadata:
       labels:
-        app: redischart
-        release: my-release2
+        app: redischart-sentinel
 
     spec:
       securityContext:
         fsGroup: 1001
       serviceAccountName: default
       containers:
-        - name: redischart
-          image: docker.io/bitnami/redis:6.0.12-debian-10-r3
+        - name: sentinel
+          image: docker.io/bitnami/redis-sentinel:6.0.12-debian-10-r0
           imagePullPolicy: "IfNotPresent"
           securityContext:
             runAsUser: 1001
           command:
             - /bin/bash
             - -c
-            - /opt/bitnami/scripts/start-scripts/start-node.sh
+            - /opt/bitnami/scripts/start-scripts/start-sentinel.sh
           env:
-            - name: REDIS_MASTER_PORT_NUMBER
-              value: "6379"
             - name: ALLOW_EMPTY_PASSWORD
               value: "yes"
-            - name: REDIS_TLS_ENABLED
+            - name: REDIS_SENTINEL_TLS_ENABLED
               value: "no"
-            - name: REDIS_PORT
-              value: "6379"
-            - name: REDIS_DATA_DIR
-              value: /data
+            - name: REDIS_SENTINEL_PORT
+              value: "26379"
           ports:
-            - name: redis
-              containerPort: 6379
+            - name: redis-sentinel
+              containerPort: 26379
           livenessProbe:
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 5
             timeoutSeconds: 5
             successThreshold: 1
             failureThreshold: 5
@@ -57,18 +69,25 @@ spec:
               command:
                 - sh
                 - -c
-                - /health/ping_liveness_local.sh 5
+                - /health/ping_sentinel.sh 5
           readinessProbe:
             initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 1
             successThreshold: 1
             failureThreshold: 5
             exec:
               command:
                 - sh
                 - -c
-                - /health/ping_readiness_local.sh 5
+                - /health/ping_sentinel.sh 5
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - /opt/bitnami/scripts/start-scripts/prestop-sentinel.sh
           resources:
             null
           volumeMounts:
@@ -80,12 +99,9 @@ spec:
               mountPath: /data
               subPath:
             - name: config
-              mountPath: /opt/bitnami/redis/mounted-etc
-            - name: redis-tmp-conf
-              mountPath: /opt/bitnami/redis/etc
-            - name: tmp
-              mountPath: /tmp
-
+              mountPath: /opt/bitnami/redis-sentinel/mounted-etc
+            - name: sentinel-tmp-conf
+              mountPath: /opt/bitnami/redis-sentinel/etc
       volumes:
         - name: start-scripts
           configMap:
@@ -98,7 +114,8 @@ spec:
         - name: config
           configMap:
             name: my-release2-redischart
-
+        - name: sentinel-tmp-conf
+          emptyDir: {}
         - name: redis-tmp-conf
           emptyDir: {}
         - name: tmp
@@ -116,7 +133,7 @@ spec:
           - "ReadWriteOnce"
         resources:
           requests:
-            storage: "8Gi"
+            storage: "3Gi"
 
         selector:
   updateStrategy:
