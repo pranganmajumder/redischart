@@ -1,28 +1,24 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "redis.fullname" . }}-headless
-  namespace: {{ .Release.Namespace | quote }}
+  name: my-release2-redischart-headless
+  namespace: "default"
   labels:
-    app: {{ template "redis.name" . }}
-    chart: {{ template "redis.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    app: redischart
+    chart: redischart-0.1.0
+    release: my-release2
+    heritage: Helm
 spec:
   type: ClusterIP
   clusterIP: None
-  {{- if .Values.sentinel.enabled }}
   publishNotReadyAddresses: true
-  {{- end }}
   ports:
     - name: tcp-redis
-      port: {{ .Values.redisPort }}
+      port: 6379
       targetPort: redis
-  {{- if .Values.sentinel.enabled }}
     - name: tcp-sentinel
-      port: {{ .Values.sentinel.port }}
+      port: 26379
       targetPort: redis-sentinel
-  {{- end }}
   selector:
-    app: {{ template "redis.name" . }}
-    release: {{ .Release.Name }}
+    app: redischart
+    release: my-release2
