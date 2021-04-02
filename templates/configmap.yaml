@@ -1,53 +1,32 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "redis.fullname" . }}
-  namespace: {{ .Release.Namespace | quote }}
+  name: my-release2-redischart
+  namespace: "default"
   labels:
-    app: {{ template "redis.name" . }}
-    chart: {{ template "redis.chart" . }}
-    heritage: {{ .Release.Service }}
-    release: {{ .Release.Name }}
+    app: redischart
+    release: my-release2
 data:
   redis.conf: |-
-{{- if .Values.configmap }}
     # User-supplied configuration:
-{{- tpl .Values.configmap . | nindent 4 }}
-{{- end }}
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
   master.conf: |-
-    dir {{ .Values.master.persistence.path }}
-{{- if .Values.master.configmap }}
-    # User-supplied master configuration:
-{{- tpl .Values.master.configmap . | nindent 4 }}
-{{- end }}
-{{- if .Values.master.disableCommands }}
-{{- range .Values.master.disableCommands }}
-    rename-command {{ . }} ""
-{{- end }}
-{{- end }}
+    dir /data
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
   replica.conf: |-
-    dir {{ .Values.slave.persistence.path }}
+    dir /data
     slave-read-only yes
-{{- if .Values.slave.configmap }}
-    # User-supplied slave configuration:
-{{- tpl .Values.slave.configmap . | nindent 4 }}
-{{- end }}
-{{- if .Values.slave.disableCommands }}
-{{- range .Values.slave.disableCommands }}
-    rename-command {{ . }} ""
-{{- end }}
-{{- end }}
-{{- if .Values.sentinel.enabled }}
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
   sentinel.conf: |-
     dir "/tmp"
     bind 0.0.0.0
-    port {{ .Values.sentinel.port }}
-    sentinel monitor {{ .Values.sentinel.masterSet }} {{ template "redis.fullname" . }}-node-0.{{ template "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} {{ .Values.redisPort }} {{ .Values.sentinel.quorum }}
-    sentinel down-after-milliseconds {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.downAfterMilliseconds }}
-    sentinel failover-timeout {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.failoverTimeout }}
-    sentinel parallel-syncs {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.parallelSyncs }}
-{{- if .Values.sentinel.configmap }}
-    # User-supplied sentinel configuration:
-{{- tpl .Values.sentinel.configmap . | nindent 4 }}
-{{- end }}
-{{- end }}
+    port 26379
+    sentinel monitor mymaster my-release2-redischart-node-0.my-release2-redischart-headless.default.svc.cluster.local 6379 2
+    sentinel down-after-milliseconds mymaster 20000
+    sentinel failover-timeout mymaster 18000
+    sentinel parallel-syncs mymaster 1
